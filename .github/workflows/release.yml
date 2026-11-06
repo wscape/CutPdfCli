@@ -50,7 +50,7 @@ jobs:
             archive_name: CutPdfCli-macos-arm64.tar.gz
 
           # macOS Intel (x86_64)
-          - os: macos-15
+          - os: macos-15-intel
             os_name: macOS Intel (x86_64)
             artifact_id: macos-x86_64
             binary_name: CutPdfCli-macos-x86_64
