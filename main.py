@@ -10,13 +10,20 @@ PDF & 폴더 탐색기 CLI 프로그램
 import locale
 import os
 import re
-import select
 import shutil
 import sys
-import termios
-import tty
 import unicodedata
 from pathlib import Path
+
+if sys.platform == "win32":
+    import msvcrt
+    select = None
+    termios = None
+    tty = None
+else:
+    import select
+    import termios
+    import tty
 
 # --- UTF-8 및 로케일 초기화 (macOS Finder 더블클릭 등 비터미널/최소 환경 지원) ---
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -27,6 +34,10 @@ if not os.environ.get("LC_ALL"):
     os.environ["LC_ALL"] = "ko_KR.UTF-8"
 if not os.environ.get("LC_CTYPE"):
     os.environ["LC_CTYPE"] = "UTF-8"
+
+# Windows 콘솔 ANSI 이스케이프 시퀀스 활성화
+if sys.platform == "win32":
+    os.system("")
 
 for _stream in (sys.stdin, sys.stdout, sys.stderr):
     if _stream and hasattr(_stream, "reconfigure"):
@@ -172,11 +183,45 @@ def _read_raw_key(fd: int) -> str:
         return ""
 
 
+def _read_win_key() -> str:
+    """
+    Windows msvcrt 기반 키 입력 처리.
+    화살표 키, Enter, ESC, Backspace, Delete, 일반 키 등 지원.
+    """
+    ch = msvcrt.getwch()
+    if ch in ("\x00", "\xe0"):
+        scancode = msvcrt.getwch()
+        mapping = {
+            "H": "UP",
+            "P": "DOWN",
+            "K": "LEFT",
+            "M": "RIGHT",
+            "G": "HOME",
+            "O": "END",
+            "S": "DELETE",
+        }
+        return mapping.get(scancode, "")
+    if ch in ("\r", "\n"):
+        return "ENTER"
+    elif ch == "\x1b":
+        return "ESC"
+    elif ch in ("\x08", "\x7f"):
+        return "BACKSPACE"
+    elif ch == "\x03":
+        return "CTRL_C"
+    elif ch == "\x04":
+        return "CTRL_D"
+    return ch
+
+
 def get_key():
     """
     키 입력을 받아옵니다 (터미널 raw 모드).
     화살표 키, Enter, ESC, Backspace, 일반 키 처리.
     """
+    if sys.platform == "win32":
+        return _read_win_key()
+
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
@@ -282,50 +327,66 @@ def inline_edit_line(
     chars = list(initial_text)
     cursor = len(chars)
 
+    def _process_key(key: str) -> tuple[bool, str | None]:
+        nonlocal cursor
+        if key == "ENTER":
+            return True, "".join(chars).strip()
+        elif key in ("ESC", "CTRL_C", "CTRL_D"):
+            return True, None if return_none_on_cancel else initial_text
+        elif key == "BACKSPACE":
+            if cursor > 0:
+                chars.pop(cursor - 1)
+                cursor -= 1
+        elif key == "DELETE":
+            if cursor < len(chars):
+                chars.pop(cursor)
+        elif key == "LEFT":
+            if cursor > 0:
+                cursor -= 1
+        elif key == "RIGHT":
+            if cursor < len(chars):
+                cursor += 1
+        elif key == "HOME":
+            cursor = 0
+        elif key == "END":
+            cursor = len(chars)
+        elif isinstance(key, str) and len(key) >= 1 and not key.startswith("\x1b"):
+            for ch in key:
+                chars.insert(cursor, ch)
+                cursor += 1
+        return False, None
+
+    def _render_editor():
+        before = "".join(chars[:cursor])
+        curr_char = chars[cursor] if cursor < len(chars) else " "
+        after = "".join(chars[cursor + 1:]) if cursor < len(chars) else ""
+
+        display_str = (
+            f"\r\033[2K   {COLOR_CYAN}✏️  [{prompt_label}]{COLOR_RESET} "
+            f"{before}{COLOR_REVERSE}{curr_char}{COLOR_RESET}{after}  "
+            f"{COLOR_GRAY}(Enter: Apply | Esc: Cancel){COLOR_RESET}"
+        )
+        sys.stdout.write(display_str)
+        sys.stdout.flush()
+
+    if sys.platform == "win32":
+        while True:
+            _render_editor()
+            key = _read_win_key()
+            done, res = _process_key(key)
+            if done:
+                return res
+
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
         while True:
-            before = "".join(chars[:cursor])
-            curr_char = chars[cursor] if cursor < len(chars) else " "
-            after = "".join(chars[cursor + 1:]) if cursor < len(chars) else ""
-
-            display_str = (
-                f"\r\033[2K   {COLOR_CYAN}✏️  [{prompt_label}]{COLOR_RESET} "
-                f"{before}{COLOR_REVERSE}{curr_char}{COLOR_RESET}{after}  "
-                f"{COLOR_GRAY}(Enter: Apply | Esc: Cancel){COLOR_RESET}"
-            )
-            sys.stdout.write(display_str)
-            sys.stdout.flush()
-
+            _render_editor()
             key = _read_raw_key(fd)
-
-            if key == "ENTER":
-                return "".join(chars).strip()
-            elif key in ("ESC", "CTRL_C", "CTRL_D"):
-                return None if return_none_on_cancel else initial_text
-            elif key == "BACKSPACE":
-                if cursor > 0:
-                    chars.pop(cursor - 1)
-                    cursor -= 1
-            elif key == "DELETE":
-                if cursor < len(chars):
-                    chars.pop(cursor)
-            elif key == "LEFT":
-                if cursor > 0:
-                    cursor -= 1
-            elif key == "RIGHT":
-                if cursor < len(chars):
-                    cursor += 1
-            elif key == "HOME":
-                cursor = 0
-            elif key == "END":
-                cursor = len(chars)
-            elif isinstance(key, str) and len(key) >= 1 and not key.startswith("\x1b"):
-                for ch in key:
-                    chars.insert(cursor, ch)
-                    cursor += 1
+            done, res = _process_key(key)
+            if done:
+                return res
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 

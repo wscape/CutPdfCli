@@ -62,6 +62,15 @@ python3 main.py
 python3 main.py ~/Documents
 ```
 
+## GitHub Releases 바이너리 다운로드
+
+GitHub Actions 자동 빌드를 통해 macOS, Windows, Linux용 단일 실행 파일이 릴리즈 자산으로 자동 제공됩니다:
+
+- **macOS (Apple Silicon)**: `CutPdfCli-macos-arm64` / `CutPdfCli-macos-arm64.tar.gz`
+- **macOS (Intel)**: `CutPdfCli-macos-x86_64` / `CutPdfCli-macos-x86_64.tar.gz`
+- **Windows (x86_64)**: `CutPdfCli-windows-x86_64.exe` / `CutPdfCli-windows-x86_64.zip`
+- **Linux (x86_64)**: `CutPdfCli-linux-x86_64` / `CutPdfCli-linux-x86_64.tar.gz`
+
 ## PyInstaller 단일 실행 파일 빌드 (`dist/CutPdfCli`)
 
 단일 바이너리 실행 파일로 빌드하려면 아래 방법 중 하나를 사용합니다:
