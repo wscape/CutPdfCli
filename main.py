@@ -69,6 +69,96 @@ COLOR_REVERSE = "\033[7m"
 COLOR_GRAY = "\033[90m"
 
 
+def get_terminal_width(default: int = 65) -> int:
+    """터미널 창의 너비(columns)를 반환합니다. 기본값 65, 최소값 20."""
+    try:
+        return max(20, shutil.get_terminal_size((default, 24)).columns)
+    except Exception:
+        return default
+
+
+def get_divider(char: str = "-", color: str = "") -> str:
+    """터미널 창 크기에 맞춘 가로줄을 반환합니다."""
+    line = char * get_terminal_width()
+    if color:
+        return f"{color}{line}{COLOR_RESET}"
+    return line
+
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
+def get_visible_width(text: str) -> int:
+    """ANSI 코드를 제외한 실제 터미널 표시 너비를 계산합니다."""
+    clean_text = _ANSI_ESCAPE_RE.sub("", text)
+    width = 0
+    for ch in clean_text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            width += 2
+        else:
+            width += 1
+    return width
+
+
+# 메뉴 UI 전용 색상 (단축키, 항목명, 구분선 각각 다른 색상)
+COLOR_MENU_KEY = f"{COLOR_BOLD}{COLOR_YELLOW}"   # 단축키 색상 (노란색)
+COLOR_MENU_NAME = f"{COLOR_BOLD}" 
+COLOR_MENU_SEP = f"  {COLOR_BOLD}{COLOR_CYAN}|{COLOR_RESET}  " # 구분선 색상 (회색)
+
+
+def make_menu_item(key: str, name: str) -> str:
+    """단축키와 항목명을 각각의 지정된 색상으로 포맷팅합니다."""
+    return f"{COLOR_MENU_KEY}{key}{COLOR_RESET} {COLOR_MENU_NAME}{name}{COLOR_RESET}"
+
+
+def format_menu_lines(items: list[str], sep: str = COLOR_MENU_SEP, prefix: str = " ") -> list[str]:
+    """
+    메뉴 항목들을 터미널 너비에 맞춰 배치합니다.
+    각 메뉴의 한 칸(셀) 길이를 동일하게 맞추고,
+    항목이 중간에 잘려 두 줄에 걸치지 않도록 너비를 초과하면 항목 단위로 다음 줄로 넘깁니다.
+    """
+    if not items:
+        return []
+
+    term_width = get_terminal_width()
+    max_item_width = max(get_visible_width(item) for item in items)
+    padded_items = [
+        item + (" " * (max_item_width - get_visible_width(item)))
+        for item in items
+    ]
+
+    lines = []
+    current_line = ""
+    current_width = 0
+    sep_width = get_visible_width(sep)
+    prefix_width = get_visible_width(prefix)
+
+    for item in padded_items:
+        item_width = get_visible_width(item)
+        if not current_line:
+            current_line = f"{prefix}{item}"
+            current_width = prefix_width + item_width
+        else:
+            if current_width + sep_width + item_width <= term_width:
+                current_line += f"{sep}{item}"
+                current_width += sep_width + item_width
+            else:
+                lines.append(current_line.rstrip())
+                current_line = f"{prefix}{item}"
+                current_width = prefix_width + item_width
+
+    if current_line:
+        lines.append(current_line.rstrip())
+
+    return lines
+
+
+def print_menu(items: list[str], sep: str = COLOR_MENU_SEP, prefix: str = " "):
+    """메뉴 항목들을 터미널 너비에 맞게 항목 단위로 줄바꿈하여 출력합니다."""
+    for line in format_menu_lines(items, sep, prefix):
+        print(line)
+
+
 def clear_screen():
     """화면 지우기"""
     sys.stdout.write("\033[2J\033[H")
@@ -236,9 +326,9 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
     clear_screen()
     current_path = Path(current_dir).resolve()
 
-    print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+    print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
     print(f"{COLOR_BOLD} 📂 Current Directory: {COLOR_YELLOW}{current_path}{COLOR_RESET}")
-    print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+    print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
 
     if not items:
         print(f"\n   {COLOR_GRAY}(No folders or PDF files to display){COLOR_RESET}\n")
@@ -260,13 +350,19 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
             else:
                 print(f"{prefix}{COLOR_GRAY}{num_str}{COLOR_RESET}{label}")
 
-    print(f"\n{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
+    print(f"\n{get_divider('-', COLOR_CYAN)}")
     if message:
         print(f" {COLOR_RED}ℹ {message}{COLOR_RESET}")
-        print(f"{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
+        print(get_divider("-", COLOR_CYAN))
 
-    print(f" {COLOR_BOLD}[↑ / ↓]{COLOR_RESET} Move  |  {COLOR_BOLD}[Enter]{COLOR_RESET} Select  |  {COLOR_BOLD}[Number]{COLOR_RESET} Quick Jump  |  {COLOR_BOLD}[.]{COLOR_RESET} Quit")
-    print(f"{COLOR_CYAN}================================================================={COLOR_RESET}")
+    menu_items = [
+        make_menu_item("[↑/↓]", "Move"),
+        make_menu_item("[Enter]", "Select"),
+        make_menu_item("[Number]", "Jump"),
+        make_menu_item("[.]", "Quit"),
+    ]
+    print_menu(menu_items)
+    print(get_divider("=", COLOR_CYAN))
 
 
 def copy_to_clipboard(text: str):
@@ -431,10 +527,18 @@ def prompt_confirmation_fallback(formatted_lines: list[str]) -> tuple[str, list[
     Fallback standard input mode for TOC confirmation and editing.
     """
     lines = list(formatted_lines)
+    fb_menu = [
+        make_menu_item("[0]", "Proceed"),
+        make_menu_item("[Number]", "Edit Line"),
+        make_menu_item("[-]", "Page -"),
+        make_menu_item("[+]", "Page +"),
+        make_menu_item("[Esc/b]", "Back"),
+        make_menu_item("[.]", "Quit"),
+    ]
     while True:
-        print(f"\n-----------------------------------------------------------------")
+        print(f"\n{get_divider('-')}")
         print(f" [Select Action]:")
-        print(f" [0] Proceed    [Number] Edit Line    [-] Page -    [+] Page +    [Esc/b] Back    [.] Quit")
+        print_menu(fb_menu, sep="    ", prefix=" ")
         choice = input(" Select (0: Proceed, Number: Edit, -/+: Page Adj, Esc/b: Back, .: Quit): ").strip()
 
         if choice in ("0", "proceed", "Proceed"):
@@ -498,7 +602,7 @@ def prompt_confirmation_with_edit_tui(
         clear_screen()
         pdf_name = Path(abs_path).name
 
-        print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+        print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
         print(f"{COLOR_BOLD} 📄 Target PDF: {COLOR_GREEN}{pdf_name}{COLOR_RESET}")
         if source_txt:
             txt_name = Path(source_txt).name
@@ -510,7 +614,7 @@ def prompt_confirmation_with_edit_tui(
             print(f" {COLOR_BOLD}📑 Detected TOC Pages:{COLOR_RESET} {COLOR_YELLOW}None detected{COLOR_RESET} ({total_pages} pages total)")
         if details:
             print(f" {COLOR_GRAY}ℹ {details}{COLOR_RESET}")
-        print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+        print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
 
         total_items = 1 + len(lines) + 1  # 0: Proceed, 1..len(lines): TOC items, len(lines)+1: Add New Section
         selected_idx = max(0, min(selected_idx, total_items - 1))
@@ -518,9 +622,23 @@ def prompt_confirmation_with_edit_tui(
         # Calculate number column width
         num_width = max(2, len(str(total_items - 1)))
 
-        # Calculate scrolling window based on terminal height
+        # Menu items and lines formatted to terminal width
+        menu_items = [
+            make_menu_item("[↑/↓]", "Move"),
+            make_menu_item("[Enter]", "Select"),
+            make_menu_item("[⌫]", "Delete"),
+            make_menu_item("[-/+]", "Page Adj"),
+            make_menu_item("[Number]", "Jump"),
+            make_menu_item("[Esc]", "Back"),
+            make_menu_item("[.]", "Quit"),
+        ]
+        menu_lines = format_menu_lines(menu_items)
+
+        # Calculate scrolling window based on terminal height and header/footer lines
+        header_lines = 4 + (1 if details else 0)
+        footer_lines = 3 + len(menu_lines) + (2 if message else 0)
         term_height = shutil.get_terminal_size((80, 24)).lines
-        max_display = max(8, term_height - 11)
+        max_display = max(5, term_height - (header_lines + footer_lines + 2))
 
         if total_items <= max_display:
             start_win = 0
@@ -539,7 +657,7 @@ def prompt_confirmation_with_edit_tui(
             num_str = f"[{idx:{num_width}d}] "
 
             if idx == 0:
-                plain_display = "🚀 Proceed (Start PDF Split)"
+                plain_display = "🚀 Start PDF Split"
                 styled_label = f"{COLOR_BLUE}{COLOR_BOLD}{plain_display}{COLOR_RESET}"
             elif idx == len(lines) + 1:
                 plain_display = "➕ Add New Section"
@@ -562,13 +680,14 @@ def prompt_confirmation_with_edit_tui(
         if end_win < total_items:
             print(f"   {COLOR_GRAY}▼ ... ({total_items - end_win} items below){COLOR_RESET}")
 
-        print(f"\n{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
+        print(f"\n{get_divider('-', COLOR_CYAN)}")
         if message:
             print(f" {COLOR_RED}ℹ {message}{COLOR_RESET}")
-            print(f"{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
+            print(get_divider("-", COLOR_CYAN))
 
-        print(f" {COLOR_BOLD}[↑ / ↓]{COLOR_RESET} Move  |  {COLOR_BOLD}[Enter]{COLOR_RESET} Select/Edit  |  {COLOR_BOLD}[⌫]{COLOR_RESET} Delete  |  {COLOR_BOLD}[- / +]{COLOR_RESET} Page Adj  |  {COLOR_BOLD}[Number]{COLOR_RESET} Jump  |  {COLOR_BOLD}[Esc]{COLOR_RESET} Back  |  {COLOR_BOLD}[.]{COLOR_RESET} Quit")
-        print(f"{COLOR_CYAN}================================================================={COLOR_RESET}")
+        for m_line in menu_lines:
+            print(m_line)
+        print(get_divider("=", COLOR_CYAN))
 
         try:
             key = get_key()
@@ -731,7 +850,7 @@ def execute_pdf_split(
         return []
 
     split_title = f"✂️  Splitting PDF ({len(tasks)} files total)"
-    sep = f"{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}" if use_color else "-----------------------------------------------------------------"
+    sep = get_divider("-", COLOR_CYAN if use_color else "")
     print(f"\n{sep}")
     print(f" {COLOR_BOLD}{split_title}{COLOR_RESET}" if use_color else f" {split_title}")
     print(f"{sep}")
@@ -777,14 +896,13 @@ def print_toc_texts(toc_pages: list, toc_texts: dict, use_color: bool = True):
     for p_num in toc_pages:
         text = toc_texts.get(p_num, "")
         header = f"📖 [TOC Page {p_num} Text Content]"
+        sep = get_divider("-", COLOR_CYAN if use_color else "")
+        print(f"\n{sep}")
         if use_color:
-            print(f"\n{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
             print(f" {COLOR_BOLD}{COLOR_CYAN}{header}{COLOR_RESET}")
-            print(f"{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
         else:
-            print(f"\n-----------------------------------------------------------------")
             print(f" {header}")
-            print(f"-----------------------------------------------------------------")
+        print(f"{sep}")
 
         if not text.strip():
             msg = "   (No text extracted from this page. It may be an image-based PDF)"
@@ -818,9 +936,9 @@ def run_fallback_cli(current_dir: str):
         items, error_msg = get_directory_items(current_dir)
         current_path = Path(current_dir).resolve()
 
-        print(f"\n=================================================================")
+        print(f"\n{get_divider('=')}")
         print(f" 📂 Current Directory: {current_path}")
-        print(f"=================================================================")
+        print(get_divider("="))
 
         if error_msg:
             print(f" [Warning] {error_msg}")
@@ -831,7 +949,7 @@ def run_fallback_cli(current_dir: str):
             for idx, item in enumerate(items, 1):
                 print(f" [{idx:2d}] {item['display']}")
 
-        print(f"-----------------------------------------------------------------")
+        print(get_divider("-"))
         user_input = input(" Select (Quit: .): ").strip()
 
         if user_input in (".", "quit", "Quit"):
@@ -855,12 +973,12 @@ def run_fallback_cli(current_dir: str):
             abs_path = os.path.abspath(chosen_item["path"])
             copied = copy_to_clipboard(abs_path)
 
-            print("\n=================================================================")
+            print(f"\n{get_divider('=')}")
             print(f" 📄 Selected PDF file path:")
             print(f" {abs_path}")
             if copied:
                 print(f" (File path copied to clipboard!)")
-            print(f"-----------------------------------------------------------------")
+            print(get_divider("-"))
             print(f" 🔍 Analyzing TOC pages...")
 
             toc_info = pdf_utils.find_toc_pages(abs_path)
@@ -897,7 +1015,7 @@ def run_fallback_cli(current_dir: str):
                 print(f"    ℹ {details}")
                 formatted_lines = []
 
-            print(f"=================================================================")
+            print(get_divider("="))
 
             # 사용자 확인: 1.Proceed, 2.Edit, 3.Page-, 4.Page+, 5.Reselect
             action, formatted_lines = prompt_confirmation_fallback(formatted_lines)
@@ -909,13 +1027,13 @@ def run_fallback_cli(current_dir: str):
             elif action == "proceed":
                 # pdf 파일이 있는 폴더에 파일명과 동일한 폴더가 없다면 생성
                 target_folder, created = ensure_pdf_folder(abs_path)
-                print(f"\n=================================================================")
+                print(f"\n{get_divider('=')}")
                 if created:
                     print(f" ✓ Created folder with the same name:")
                 else:
                     print(f" ℹ Folder with the same name already exists:")
                 print(f"   📂 {target_folder}")
-                print(f"=================================================================")
+                print(get_divider("="))
 
                 # PDF 분리해서 생성된 폴더에 저장 (수정된 목차 라인 적용)
                 execute_pdf_split(abs_path, target_folder, toc_pages, toc_texts, total_pages, formatted_lines=formatted_lines, source_txt=source_txt, use_color=False)
@@ -1017,12 +1135,12 @@ def run():
                 copied = copy_to_clipboard(abs_path)
 
                 clear_screen()
-                print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+                print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
                 print(f"{COLOR_BOLD}{COLOR_GREEN} 📄 Selected PDF file: {chosen_item['name']}{COLOR_RESET}")
                 print(f" {COLOR_BOLD}📂 Full path:{COLOR_RESET} {abs_path}")
                 if copied:
                     print(f" {COLOR_YELLOW}✓ File path copied to clipboard.{COLOR_RESET}")
-                print(f"{COLOR_CYAN}-----------------------------------------------------------------{COLOR_RESET}")
+                print(get_divider("-", COLOR_CYAN))
                 print(f" {COLOR_BOLD}🔍 Analyzing TOC pages...{COLOR_RESET}")
 
                 toc_info = pdf_utils.find_toc_pages(abs_path)
@@ -1059,18 +1177,18 @@ def run():
                     target_folder, created = ensure_pdf_folder(abs_path)
 
                     clear_screen()
-                    print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+                    print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
                     print(f"{COLOR_BOLD} 📄 Target file: {COLOR_GREEN}{chosen_item['name']}{COLOR_RESET}")
                     if created:
                         print(f" {COLOR_GREEN}✓ Created folder with the same name:{COLOR_RESET}")
                     else:
                         print(f" {COLOR_YELLOW}ℹ Folder with the same name already exists:{COLOR_RESET}")
                     print(f"   📂 {COLOR_BOLD}{COLOR_CYAN}{target_folder}{COLOR_RESET}")
-                    print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}")
+                    print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
 
                     # PDF 분리해서 생성된 폴더에 저장 (수정된 목차 라인 적용)
                     execute_pdf_split(abs_path, target_folder, toc_pages, toc_texts, total_pages, formatted_lines=formatted_lines, source_txt=source_txt, use_color=True)
-                    print(f"{COLOR_BOLD}{COLOR_CYAN}================================================================={COLOR_RESET}\n")
+                    print(f"{get_divider('=', f'{COLOR_BOLD}{COLOR_CYAN}')}\n")
 
                     print(f" Press {COLOR_BOLD}[Enter]{COLOR_RESET} or any key to continue browsing. (Quit: {COLOR_BOLD}.{COLOR_RESET})")
                     try:
