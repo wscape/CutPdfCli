@@ -364,8 +364,7 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
     print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
 
     menu_items = [
-        make_menu_item("[↑/↓]", "Move"),
-        make_menu_item("[←/→]", "Page"),
+        make_menu_item("[↑↓/←→]", "Move"),
         make_menu_item("[Number]", "Jump"),
         make_menu_item("[Enter]", "Select"),
         make_menu_item("[ . ]", "Quit"),
@@ -677,8 +676,7 @@ def prompt_confirmation_with_edit_tui(
 
         # Menu items and lines formatted to terminal width
         menu_items = [
-            make_menu_item("[↑/↓]", "Move"),
-            make_menu_item("[←/→]", "Page"),
+            make_menu_item("[↑↓/←→]", "Move"),
             make_menu_item("[Number]", "Jump"),
             make_menu_item("[Esc]", "Back"),
             make_menu_item("[Enter]", "Select"),
