@@ -372,7 +372,8 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
     menu_lines = format_menu_lines(menu_items)
 
     header_lines = 3
-    footer_lines = 2 + len(menu_lines) + (2 if message else 0)
+    cursor_margin = 1  # 터미널 하단 커서 위치용 여유 줄 (화면 밀림/자동 스크롤 방지)
+    footer_lines = 2 + len(menu_lines) + (2 if message else 0) + cursor_margin
     term_height = shutil.get_terminal_size((80, 24)).lines
     available_height = max(1, term_height - (header_lines + footer_lines))
 
@@ -688,7 +689,8 @@ def prompt_confirmation_with_edit_tui(
 
         # Calculate scrolling window based on terminal height and header/footer lines
         header_lines = 4 + (1 if details else 0)
-        footer_lines = 2 + len(menu_lines) + (2 if message else 0)
+        cursor_margin = 1  # 터미널 하단 커서 위치용 여유 줄 (화면 밀림/자동 스크롤 방지)
+        footer_lines = 2 + len(menu_lines) + (2 if message else 0) + cursor_margin
         term_height = shutil.get_terminal_size((80, 24)).lines
         available_height = max(1, term_height - (header_lines + footer_lines))
 
