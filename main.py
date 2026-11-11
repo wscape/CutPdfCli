@@ -103,7 +103,7 @@ def get_visible_width(text: str) -> int:
 # 메뉴 UI 전용 색상 (단축키, 항목명, 구분선 각각 다른 색상)
 COLOR_MENU_KEY = f"{COLOR_BOLD}{COLOR_YELLOW}"   # 단축키 색상 (노란색)
 COLOR_MENU_NAME = f"{COLOR_BOLD}" 
-COLOR_MENU_SEP = f"  {COLOR_BOLD}{COLOR_CYAN}|{COLOR_RESET}  " # 구분선 색상 (회색)
+COLOR_MENU_SEP = f" {COLOR_BOLD}{COLOR_CYAN}|{COLOR_RESET} " # 구분선 색상 (청록색)
 
 
 def make_menu_item(key: str, name: str) -> str:
@@ -257,7 +257,7 @@ def _read_raw_key(fd: int) -> str:
         return "HOME"
     elif b in (b"\x1b[F", b"\x1b[4~"):
         return "END"
-    elif b == b"\x1b[3~":
+    elif b == b"\x1b[3~" or (b.startswith(b"\x1b[3") and b.endswith(b"~")) or b == b"\x1b[P":
         return "DELETE"
     elif b in (b"\r", b"\n"):
         return "ENTER"
@@ -336,7 +336,7 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
         for idx, item in enumerate(items):
             is_selected = (idx == selected_idx)
             prefix = f"{COLOR_CYAN}▶{COLOR_RESET} " if is_selected else "  "
-            num_str = f"[{idx + 1:2d}] "
+            num_str = f"[{idx:2d}] "
 
             if item["type"] == "parent":
                 label = f"{COLOR_BLUE}{item['display']}{COLOR_RESET}"
@@ -357,13 +357,12 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
 
     menu_items = [
         make_menu_item("[↑/↓]", "Move"),
-        make_menu_item("[Enter]", "Select"),
         make_menu_item("[Number]", "Jump"),
-        make_menu_item("[.]", "Quit"),
+        make_menu_item("[Enter]", "Select"),
+        make_menu_item("[ . ]", "Quit"),
     ]
     print_menu(menu_items)
     print(get_divider("=", COLOR_CYAN))
-
 
 def copy_to_clipboard(text: str):
     """macOS 환경에서 pbcopy를 통해 텍스트를 클립보드에 복사합니다."""
@@ -587,8 +586,6 @@ def prompt_confirmation_with_edit_tui(
     - [ 1..N] Items for each TOC line (file name and page number) with [number] for quick jump.
     - [ N+1] ➕ Add New Section at the end of the list to add new sections.
     - [Enter] to select: executes on [ 0], edits line on [ 1..N], adds item on [ N+1].
-    - [⌫] deletes the selected section (both title and page line).
-    - [- / +] adjust all page numbers.
     - [Esc] returns to the file selection list.
     - [.] quits program.
     All menu items and messages are in English.
@@ -625,12 +622,12 @@ def prompt_confirmation_with_edit_tui(
         # Menu items and lines formatted to terminal width
         menu_items = [
             make_menu_item("[↑/↓]", "Move"),
-            make_menu_item("[Enter]", "Select"),
-            make_menu_item("[⌫]", "Delete"),
-            make_menu_item("[-/+]", "Page Adj"),
             make_menu_item("[Number]", "Jump"),
             make_menu_item("[Esc]", "Back"),
-            make_menu_item("[.]", "Quit"),
+            make_menu_item("[Enter]", "Select"),
+            make_menu_item("[Del]", "Delete"),
+            make_menu_item("[-/+]", "Page Adj"),
+            make_menu_item("[ . ]", "Quit"),
         ]
         menu_lines = format_menu_lines(menu_items)
 
@@ -716,8 +713,7 @@ def prompt_confirmation_with_edit_tui(
             message = f"All page numbers increased by 1 ({cnt} items total)."
             number_buffer = ""
 
-        elif key in ("BACKSPACE", "DELETE"):
-            number_buffer = ""
+        elif key in ("BACKSPACE", "DELETE", "DEL"):
             if 1 <= selected_idx <= len(lines):
                 line_pos = selected_idx - 1
                 sec_idx = line_pos // 2
@@ -946,7 +942,7 @@ def run_fallback_cli(current_dir: str):
         if not items:
             print(" (No folders or PDF files to display)")
         else:
-            for idx, item in enumerate(items, 1):
+            for idx, item in enumerate(items):
                 print(f" [{idx:2d}] {item['display']}")
 
         print(get_divider("-"))
@@ -961,11 +957,11 @@ def run_fallback_cli(current_dir: str):
             continue
 
         selected_num = int(user_input)
-        if selected_num < 1 or selected_num > len(items):
+        if selected_num < 0 or selected_num >= len(items):
             print("Please enter a number from the list.")
             continue
 
-        chosen_item = items[selected_num - 1]
+        chosen_item = items[selected_num]
 
         if chosen_item["type"] in ("parent", "dir"):
             current_dir = chosen_item["path"]
@@ -1107,7 +1103,7 @@ def run():
 
         elif key.isdigit():
             number_buffer += key
-            target_idx = int(number_buffer) - 1
+            target_idx = int(number_buffer)
             if 0 <= target_idx < len(items):
                 selected_idx = target_idx
             else:
