@@ -1041,6 +1041,22 @@ def run_fallback_cli(current_dir: str):
 
 
 def run():
+    # 명령줄 인수 확인 (--help, --version)
+    if len(sys.argv) > 1:
+        arg = sys.argv[1]
+        if arg in ("--help", "-h"):
+            print("Usage: cpc [DIRECTORY]")
+            print("\nCutPdfCli (cpc) - Fast CLI tool to split PDF files using table of contents.")
+            print("\nArguments:")
+            print("  DIRECTORY      Initial directory to open (defaults to current directory)")
+            print("\nOptions:")
+            print("  -h, --help     Show this help message and exit")
+            print("  -v, --version  Show version information")
+            return
+        if arg in ("--version", "-v"):
+            print("cpc 1.0.0")
+            return
+
     # 명령줄 인수로 시작 디렉토리 지정 가능
     if len(sys.argv) > 1 and os.path.isdir(sys.argv[1]):
         current_dir = os.path.abspath(sys.argv[1])

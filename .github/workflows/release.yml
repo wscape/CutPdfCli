@@ -137,28 +137,24 @@ jobs:
           - os: ubuntu-latest
             os_name: Linux x86_64
             artifact_id: linux-x86_64
-            binary_name: cpc-linux-x86_64
             archive_name: cpc-linux-x86_64.tar.gz
 
           # Windows (x86_64)
           - os: windows-latest
             os_name: Windows x86_64
             artifact_id: windows-x86_64
-            binary_name: cpc-windows-x86_64.exe
             archive_name: cpc-windows-x86_64.zip
 
           # macOS Apple Silicon (arm64)
           - os: macos-latest
             os_name: macOS Apple Silicon (arm64)
             artifact_id: macos-arm64
-            binary_name: cpc-macos-arm64
             archive_name: cpc-macos-arm64.tar.gz
 
           # macOS Intel (x86_64)
           - os: macos-15-intel
             os_name: macOS Intel (x86_64)
             artifact_id: macos-x86_64
-            binary_name: cpc-macos-x86_64
             archive_name: cpc-macos-x86_64.tar.gz
 
     steps:
@@ -185,11 +181,9 @@ jobs:
         run: |
           mkdir -p release_assets
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp dist/cpc.exe release_assets/${{ matrix.binary_name }}
             python -c "import zipfile; zipfile.ZipFile('release_assets/${{ matrix.archive_name }}', 'w', zipfile.ZIP_DEFLATED).write('dist/cpc.exe', 'cpc.exe')"
           else
-            cp dist/cpc release_assets/${{ matrix.binary_name }}
-            chmod +x release_assets/${{ matrix.binary_name }}
+            chmod +x dist/cpc
             tar -czvf release_assets/${{ matrix.archive_name }} -C dist cpc
           fi
 
@@ -208,6 +202,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -218,8 +218,69 @@ jobs:
       - name: Generate SHA256 checksums
         working-directory: dist_all
         run: |
-          sha256sum * > SHA256SUMS.txt
+          sha256sum *.tar.gz *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      - name: Update Homebrew Formula
+        shell: bash
+        run: |
+          set -e
+          TAG="${{ needs.prepare.outputs.tag_name }}"
+          VERSION="${TAG#v}"
+
+          # Extract SHA256 for each archive
+          SHA_MACOS_ARM64=$(sha256sum dist_all/cpc-macos-arm64.tar.gz | awk '{print $1}')
+          SHA_MACOS_X86_64=$(sha256sum dist_all/cpc-macos-x86_64.tar.gz | awk '{print $1}')
+          SHA_LINUX_X86_64=$(sha256sum dist_all/cpc-linux-x86_64.tar.gz | awk '{print $1}')
+
+          echo "Updating Formula/cpc.rb for version $VERSION..."
+          mkdir -p Formula
+          cat <<EOF > Formula/cpc.rb
+class Cpc < Formula
+  desc "Fast CLI tool to split PDF files using table of contents"
+  homepage "https://github.com/wscape/CutPdfCli"
+  version "${VERSION}"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-macos-arm64.tar.gz"
+      sha256 "${SHA_MACOS_ARM64}"
+    else
+      url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-macos-x86_64.tar.gz"
+      sha256 "${SHA_MACOS_X86_64}"
+    end
+  end
+
+  on_linux do
+    if Hardware::CPU.intel?
+      url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-linux-x86_64.tar.gz"
+      sha256 "${SHA_LINUX_X86_64}"
+    end
+  end
+
+  def install
+    bin.install "cpc"
+  end
+
+  test do
+    assert_match "cpc", shell_output("#{bin}/cpc --help")
+  end
+end
+EOF
+
+          # Copy to dist_all so cpc.rb is also uploaded as a release asset
+          cp Formula/cpc.rb dist_all/cpc.rb
+
+          # Commit updated Formula/cpc.rb back to main branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git add Formula/cpc.rb
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(formula): update Homebrew formula for ${TAG} [skip ci]"
+            git push origin main
+          fi
 
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2

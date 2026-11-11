@@ -47,6 +47,37 @@
    - **대화형 TUI 모드 (기본 터미널)**: 방향키(`↑`, `↓`, `←`, `→`)로 커서를 이동하고 `Enter`로 선택하거나, 번호 키를 눌러 바로 선택할 수 있습니다.
    - **표준 CLI 모드 (Fallback)**: 파이프라인이나 특수 환경에서도 번호 입력 방식으로 문제없이 동작합니다.
 
+## 설치 방법
+
+### 1. Homebrew로 설치 (macOS / Linux 추천)
+
+Homebrew Tap을 통해 손쉽게 설치하고 최신 버전으로 업데이트할 수 있습니다:
+
+```bash
+# 1) Tap 추가 및 cpc 설치
+brew tap wscape/CutPdfCli
+brew install cpc
+
+# 또는 원라이너로 바로 설치
+brew install wscape/CutPdfCli/cpc
+
+# 최신 버전 업데이트
+brew upgrade cpc
+```
+
+설치 후 터미널 어디서나 `cpc` 명령어로 즉시 사용할 수 있습니다.
+
+### 2. GitHub Releases 압축파일 다운로드
+
+GitHub Actions 자동 빌드를 통해 macOS, Windows, Linux용 `cpc` 압축 파일이 릴리즈 자산으로 제공됩니다:
+
+- **macOS (Apple Silicon)**: `cpc-macos-arm64.tar.gz`
+- **macOS (Intel)**: `cpc-macos-x86_64.tar.gz`
+- **Linux (x86_64)**: `cpc-linux-x86_64.tar.gz`
+- **Windows (x86_64)**: `cpc-windows-x86_64.zip`
+
+압축 해제 후 생성되는 `cpc` (Windows는 `cpc.exe`) 명령어로 즉시 실행할 수 있습니다.
+
 ## 실행 방법
 
 가상환경에 설치된 `pypdf`를 자동으로 인식하며, 환경이 없는 경우에도 macOS 내장 `PDFKit`을 Fallback으로 사용하여 안정적으로 동작합니다.
@@ -62,17 +93,6 @@
 python3 cpc.py
 python3 main.py
 ```
-
-## GitHub Releases 바이너리 다운로드
-
-GitHub Actions 자동 빌드를 통해 macOS, Windows, Linux용 `cpc` 단일 실행 파일이 릴리즈 자산으로 자동 제공됩니다:
-
-- **macOS (Apple Silicon)**: `cpc-macos-arm64` / `cpc-macos-arm64.tar.gz`
-- **macOS (Intel)**: `cpc-macos-x86_64` / `cpc-macos-x86_64.tar.gz`
-- **Windows (x86_64)**: `cpc-windows-x86_64.exe` / `cpc-windows-x86_64.zip`
-- **Linux (x86_64)**: `cpc-linux-x86_64` / `cpc-linux-x86_64.tar.gz`
-
-압축 해제 후 `cpc` (Windows는 `cpc.exe`) 명령어로 즉시 실행할 수 있습니다.
 
 ## PyInstaller 단일 실행 파일 빌드 (`dist/cpc`)
 
