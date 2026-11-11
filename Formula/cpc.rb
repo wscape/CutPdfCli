@@ -1,22 +1,22 @@
 class Cpc < Formula
   desc "Fast CLI tool to split PDF files using table of contents"
   homepage "https://github.com/wscape/CutPdfCli"
-  version "0.2.0"
+  version "0.2.1"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-macos-arm64.tar.gz"
-      sha256 "468c5f1639a1b8f4476555f25e652e877d857e2b977da994274baa3178183850"
+      sha256 "e73fff9ab853972404e114a4576c0479070cc4d1c937fb03b4f974c0445694ec"
     else
       url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-macos-x86_64.tar.gz"
-      sha256 "e8589d0f6ff87618061a3611a6ebd2cb019ba19aba2c9170eb6bbd72af6531a7"
+      sha256 "904f3c782b05f7144909ac12e360cc1e0f5325fa392294edd09f38f44c230cd4"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
       url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-linux-x86_64.tar.gz"
-      sha256 "e110e3e92ae5eece53818085d4d11d2f6bfe3c9f1e60096387f1c996ba288389"
+      sha256 "4202ff10dbff06d8eabc2ff288fa36d624f0a9721328dd6a56926ac63ea8b0c2"
     end
   end
 
