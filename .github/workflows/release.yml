@@ -226,47 +226,7 @@ jobs:
         run: |
           set -e
           TAG="${{ needs.prepare.outputs.tag_name }}"
-          VERSION="${TAG#v}"
-
-          # Extract SHA256 for each archive
-          SHA_MACOS_ARM64=$(sha256sum dist_all/cpc-macos-arm64.tar.gz | awk '{print $1}')
-          SHA_MACOS_X86_64=$(sha256sum dist_all/cpc-macos-x86_64.tar.gz | awk '{print $1}')
-          SHA_LINUX_X86_64=$(sha256sum dist_all/cpc-linux-x86_64.tar.gz | awk '{print $1}')
-
-          echo "Updating Formula/cpc.rb for version $VERSION..."
-          mkdir -p Formula
-          cat <<EOF > Formula/cpc.rb
-class Cpc < Formula
-  desc "Fast CLI tool to split PDF files using table of contents"
-  homepage "https://github.com/wscape/CutPdfCli"
-  version "${VERSION}"
-
-  on_macos do
-    if Hardware::CPU.arm?
-      url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-macos-arm64.tar.gz"
-      sha256 "${SHA_MACOS_ARM64}"
-    else
-      url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-macos-x86_64.tar.gz"
-      sha256 "${SHA_MACOS_X86_64}"
-    end
-  end
-
-  on_linux do
-    if Hardware::CPU.intel?
-      url "https://github.com/wscape/CutPdfCli/releases/download/v#{version}/cpc-linux-x86_64.tar.gz"
-      sha256 "${SHA_LINUX_X86_64}"
-    end
-  end
-
-  def install
-    bin.install "cpc"
-  end
-
-  test do
-    assert_match "cpc", shell_output("#{bin}/cpc --help")
-  end
-end
-EOF
+          python3 scripts/update_formula.py "$TAG"
 
           # Copy to dist_all so cpc.rb is also uploaded as a release asset
           cp Formula/cpc.rb dist_all/cpc.rb
