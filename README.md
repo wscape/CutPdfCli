@@ -54,8 +54,11 @@
 Homebrew를 통해 손쉽게 설치하고 최신 버전으로 업데이트할 수 있습니다:
 
 ```bash
-# 1) Tap 추가 및 cpc 설치 (저장소 URL 지정)
+# 1) Tap 추가 및 신뢰 등록 (저장소 URL 지정)
 brew tap wscape/cutpdfcli https://github.com/wscape/CutPdfCli
+brew trust wscape/cutpdfcli
+
+# 2) cpc 설치
 brew install cpc
 
 # 또는 URL로 직접 1줄 설치
@@ -118,13 +121,17 @@ pyinstaller --onefile --clean --name cpc main.py
 ## 조작법 안내
 
 ### 파일 탐색 화면
-- `↑` / `↓` : 폴더 및 PDF 파일 목록 이동 (하이라이트)
+- `↑` / `↓` : 폴더 및 PDF 파일 목록 1항목씩 이동
+- `←` / `→` 또는 `PageUp` / `PageDown` (`fn + ↑ / ↓`) : 한 화면 단위(페이지) 스크롤
+- `Home` / `End` : 목록 맨 처음 / 맨 끝으로 점프
 - `Enter` : 폴더 진입 또는 PDF 파일 선택
-- `숫자 키` (`0`, `1`, `2` ...) : 해당 번호 항목으로 바로 이동
+- `숫자 키` (`0`, `1`, `2` ...) : 해당 번호 항목으로 바로 이동 (Quick Jump)
 - `.` 또는 `Ctrl + C` : 프로그램 종료 (Quit)
 
 ### 진행 확인 및 수정 화면 (TOC Editor)
-- `↑` / `↓` : 리스트 항목 간 이동 (하이라이트)
+- `↑` / `↓` : 리스트 항목 간 1항목씩 이동
+- `←` / `→` 또는 `PageUp` / `PageDown` (`fn + ↑ / ↓`) : 한 화면 단위(페이지) 스크롤
+- `Home` / `End` : 목록 맨 처음 / 맨 끝으로 점프
 - `Enter` :
   - `[ 0] Proceed` 선택 시: PDF 분할 작업 시작
   - `[ 1..N]` 선택 시: 파일명 또는 페이지 번호 인라인 수정 (페이지 번호 변경 시 자동 재정렬)

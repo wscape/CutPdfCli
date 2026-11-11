@@ -257,6 +257,10 @@ def _read_raw_key(fd: int) -> str:
         return "HOME"
     elif b in (b"\x1b[F", b"\x1b[4~"):
         return "END"
+    elif b in (b"\x1b[5~", b"\x1b[[5~", b"\x1b[5;2~", b"\x1b[5;5~"):
+        return "PAGEUP"
+    elif b in (b"\x1b[6~", b"\x1b[[6~", b"\x1b[6;2~", b"\x1b[6;5~"):
+        return "PAGEDOWN"
     elif b == b"\x1b[3~" or (b.startswith(b"\x1b[3") and b.endswith(b"~")) or b == b"\x1b[P":
         return "DELETE"
     elif b in (b"\r", b"\n"):
@@ -288,6 +292,8 @@ def _read_win_key() -> str:
             "M": "RIGHT",
             "G": "HOME",
             "O": "END",
+            "I": "PAGEUP",
+            "Q": "PAGEDOWN",
             "S": "DELETE",
         }
         return mapping.get(scancode, "")
@@ -321,8 +327,35 @@ def get_key():
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
-def render_ui(current_dir: str, items: list, selected_idx: int, message: str = ""):
-    """UI를 렌더링합니다."""
+def compute_scroll_window(total_items: int, selected_idx: int, available_height: int) -> tuple[int, int]:
+    """
+    터미널 가용 높이에 맞추어 (start_idx, end_idx) 스크롤 윈도우 범위를 계산합니다.
+    스크롤 인디케이터(▲ / ▼)가 필요한 경우 인디케이터가 차지하는 행 수(각 1줄)를 고려합니다.
+    """
+    if total_items <= 0:
+        return 0, 0
+    if total_items <= available_height:
+        return 0, total_items
+
+    # 윈도우 크기는 가용 높이에서 인디케이터(최대 2줄)를 뺀 값 (최소 1개 이상)
+    window_size = max(1, available_height - 2)
+
+    # selected_idx가 가급적 중앙에 오도록 시작 위치 계산
+    start = selected_idx - (window_size // 2)
+    start = max(0, min(start, total_items - window_size))
+    end = min(total_items, start + window_size)
+
+    # 위쪽이나 아래쪽 인디케이터 중 한 쪽만 필요한 경우 1줄 더 표시
+    if start == 0 and end < total_items and (end - start + 1) <= (available_height - 1):
+        end = min(total_items, end + 1)
+    elif end == total_items and start > 0 and (end - start + 1) <= (available_height - 1):
+        start = max(0, start - 1)
+
+    return start, end
+
+
+def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "") -> int:
+    """UI를 렌더링하고 한 번에 표시된 항목 수(페이지 크기)를 반환합니다."""
     clear_screen()
     current_path = Path(current_dir).resolve()
 
@@ -330,13 +363,36 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
     print(f"{COLOR_BOLD} 📂 Current Directory: {COLOR_YELLOW}{current_path}{COLOR_RESET}")
     print(get_divider("=", f"{COLOR_BOLD}{COLOR_CYAN}"))
 
+    menu_items = [
+        make_menu_item("[↑/↓]", "Move"),
+        make_menu_item("[←/→]", "Page"),
+        make_menu_item("[Number]", "Jump"),
+        make_menu_item("[Enter]", "Select"),
+        make_menu_item("[ . ]", "Quit"),
+    ]
+    menu_lines = format_menu_lines(menu_items)
+
+    header_lines = 3
+    footer_lines = 2 + len(menu_lines) + (2 if message else 0)
+    term_height = shutil.get_terminal_size((80, 24)).lines
+    available_height = max(1, term_height - (header_lines + footer_lines))
+
     if not items:
         print(f"\n   {COLOR_GRAY}(No folders or PDF files to display){COLOR_RESET}\n")
+        page_size = 1
     else:
-        for idx, item in enumerate(items):
+        num_width = max(2, len(str(len(items) - 1)))
+        start_win, end_win = compute_scroll_window(len(items), selected_idx, available_height)
+        page_size = max(1, end_win - start_win)
+
+        if start_win > 0:
+            print(f"   {COLOR_GRAY}▲ ... ({start_win} items above){COLOR_RESET}")
+
+        for idx in range(start_win, end_win):
+            item = items[idx]
             is_selected = (idx == selected_idx)
             prefix = f"{COLOR_CYAN}▶{COLOR_RESET} " if is_selected else "  "
-            num_str = f"[{idx:2d}] "
+            num_str = f"[{idx:{num_width}d}] "
 
             if item["type"] == "parent":
                 label = f"{COLOR_BLUE}{item['display']}{COLOR_RESET}"
@@ -350,19 +406,19 @@ def render_ui(current_dir: str, items: list, selected_idx: int, message: str = "
             else:
                 print(f"{prefix}{COLOR_GRAY}{num_str}{COLOR_RESET}{label}")
 
-    print(f"\n{get_divider('-', COLOR_CYAN)}")
+        if end_win < len(items):
+            print(f"   {COLOR_GRAY}▼ ... ({len(items) - end_win} items below){COLOR_RESET}")
+
+    print(get_divider("-", COLOR_CYAN))
     if message:
         print(f" {COLOR_RED}ℹ {message}{COLOR_RESET}")
         print(get_divider("-", COLOR_CYAN))
 
-    menu_items = [
-        make_menu_item("[↑/↓]", "Move"),
-        make_menu_item("[Number]", "Jump"),
-        make_menu_item("[Enter]", "Select"),
-        make_menu_item("[ . ]", "Quit"),
-    ]
-    print_menu(menu_items)
+    for m_line in menu_lines:
+        print(m_line)
     print(get_divider("=", COLOR_CYAN))
+
+    return page_size
 
 def copy_to_clipboard(text: str):
     """macOS 환경에서 pbcopy를 통해 텍스트를 클립보드에 복사합니다."""
@@ -622,6 +678,7 @@ def prompt_confirmation_with_edit_tui(
         # Menu items and lines formatted to terminal width
         menu_items = [
             make_menu_item("[↑/↓]", "Move"),
+            make_menu_item("[←/→]", "Page"),
             make_menu_item("[Number]", "Jump"),
             make_menu_item("[Esc]", "Back"),
             make_menu_item("[Enter]", "Select"),
@@ -633,17 +690,11 @@ def prompt_confirmation_with_edit_tui(
 
         # Calculate scrolling window based on terminal height and header/footer lines
         header_lines = 4 + (1 if details else 0)
-        footer_lines = 3 + len(menu_lines) + (2 if message else 0)
+        footer_lines = 2 + len(menu_lines) + (2 if message else 0)
         term_height = shutil.get_terminal_size((80, 24)).lines
-        max_display = max(5, term_height - (header_lines + footer_lines + 2))
+        available_height = max(1, term_height - (header_lines + footer_lines))
 
-        if total_items <= max_display:
-            start_win = 0
-            end_win = total_items
-        else:
-            half = max_display // 2
-            start_win = max(0, min(selected_idx - half, total_items - max_display))
-            end_win = min(total_items, start_win + max_display)
+        start_win, end_win = compute_scroll_window(total_items, selected_idx, available_height)
 
         if start_win > 0:
             print(f"   {COLOR_GRAY}▲ ... ({start_win} items above){COLOR_RESET}")
@@ -677,7 +728,7 @@ def prompt_confirmation_with_edit_tui(
         if end_win < total_items:
             print(f"   {COLOR_GRAY}▼ ... ({total_items - end_win} items below){COLOR_RESET}")
 
-        print(f"\n{get_divider('-', COLOR_CYAN)}")
+        print(get_divider("-", COLOR_CYAN))
         if message:
             print(f" {COLOR_RED}ℹ {message}{COLOR_RESET}")
             print(get_divider("-", COLOR_CYAN))
@@ -738,6 +789,26 @@ def prompt_confirmation_with_edit_tui(
         elif key == "DOWN":
             if total_items > 0:
                 selected_idx = (selected_idx + 1) % total_items
+            number_buffer = ""
+
+        elif key in ("PAGEUP", "LEFT"):
+            if total_items > 0:
+                step = max(1, end_win - start_win)
+                selected_idx = max(0, selected_idx - step)
+            number_buffer = ""
+
+        elif key in ("PAGEDOWN", "RIGHT"):
+            if total_items > 0:
+                step = max(1, end_win - start_win)
+                selected_idx = min(total_items - 1, selected_idx + step)
+            number_buffer = ""
+
+        elif key == "HOME":
+            selected_idx = 0
+            number_buffer = ""
+
+        elif key == "END":
+            selected_idx = max(0, total_items - 1)
             number_buffer = ""
 
         elif key.isdigit():
@@ -1092,7 +1163,7 @@ def run():
         else:
             selected_idx = max(0, min(selected_idx, len(items) - 1))
 
-        render_ui(current_dir, items, selected_idx, message)
+        page_size = render_ui(current_dir, items, selected_idx, message)
         message = ""
 
         try:
@@ -1115,6 +1186,25 @@ def run():
         elif key == "DOWN":
             if items:
                 selected_idx = (selected_idx + 1) % len(items)
+            number_buffer = ""
+
+        elif key in ("PAGEUP", "LEFT"):
+            if items:
+                selected_idx = max(0, selected_idx - page_size)
+            number_buffer = ""
+
+        elif key in ("PAGEDOWN", "RIGHT"):
+            if items:
+                selected_idx = min(len(items) - 1, selected_idx + page_size)
+            number_buffer = ""
+
+        elif key == "HOME":
+            selected_idx = 0
+            number_buffer = ""
+
+        elif key == "END":
+            if items:
+                selected_idx = len(items) - 1
             number_buffer = ""
 
         elif key.isdigit():
