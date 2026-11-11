@@ -59,6 +59,9 @@ build/pdfsplit/localpycs/pyimod02_importers.pyc
 build/pdfsplit/localpycs/pyimod03_ctypes.pyc
 build/pdfsplit/localpycs/struct.pyc
 dist/CutPdfCli
+dist/cpc
+build/cpc
+build/cpc/*
 __pycache__/main.cpython-314.pyc
 __pycache__/pdf_utils.cpython-314.pyc
 .cache/pyinstaller/pyinstaller/bincache00py31464bit/arm64/adhoc/no-entitlements/index.dat

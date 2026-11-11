@@ -1,4 +1,4 @@
-# PDF & Directory Explorer CLI (`CutPdfCli`)
+# PDF & Directory Explorer CLI (`cpc` / `CutPdfCli`)
 
 터미널에서 디렉토리를 탐색하고 PDF 파일의 전체 경로 및 **정제된 목차(TOC) 텍스트**를 확인한 후, **목차의 파일명과 페이지 번호를 기반으로 PDF를 자동 분할(Split)하여 저장**하고 원본 파일까지 정리하는 대화형 CLI 도구입니다.
 
@@ -52,26 +52,29 @@
 가상환경에 설치된 `pypdf`를 자동으로 인식하며, 환경이 없는 경우에도 macOS 내장 `PDFKit`을 Fallback으로 사용하여 안정적으로 동작합니다.
 
 ```bash
-# 기본 실행 (현재 디렉토리에서 시작)
-python3 main.py
-
-# 또는 직접 실행 (실행 권한 포함)
-./main.py
+# 기본 실행 (cpc 명령어)
+./cpc
 
 # 특정 경로에서 시작하고 싶을 때
-python3 main.py ~/Documents
+./cpc ~/Documents
+
+# 또는 python으로 직접 실행
+python3 cpc.py
+python3 main.py
 ```
 
 ## GitHub Releases 바이너리 다운로드
 
-GitHub Actions 자동 빌드를 통해 macOS, Windows, Linux용 단일 실행 파일이 릴리즈 자산으로 자동 제공됩니다:
+GitHub Actions 자동 빌드를 통해 macOS, Windows, Linux용 `cpc` 단일 실행 파일이 릴리즈 자산으로 자동 제공됩니다:
 
-- **macOS (Apple Silicon)**: `CutPdfCli-macos-arm64` / `CutPdfCli-macos-arm64.tar.gz`
-- **macOS (Intel)**: `CutPdfCli-macos-x86_64` / `CutPdfCli-macos-x86_64.tar.gz`
-- **Windows (x86_64)**: `CutPdfCli-windows-x86_64.exe` / `CutPdfCli-windows-x86_64.zip`
-- **Linux (x86_64)**: `CutPdfCli-linux-x86_64` / `CutPdfCli-linux-x86_64.tar.gz`
+- **macOS (Apple Silicon)**: `cpc-macos-arm64` / `cpc-macos-arm64.tar.gz`
+- **macOS (Intel)**: `cpc-macos-x86_64` / `cpc-macos-x86_64.tar.gz`
+- **Windows (x86_64)**: `cpc-windows-x86_64.exe` / `cpc-windows-x86_64.zip`
+- **Linux (x86_64)**: `cpc-linux-x86_64` / `cpc-linux-x86_64.tar.gz`
 
-## PyInstaller 단일 실행 파일 빌드 (`dist/CutPdfCli`)
+압축 해제 후 `cpc` (Windows는 `cpc.exe`) 명령어로 즉시 실행할 수 있습니다.
+
+## PyInstaller 단일 실행 파일 빌드 (`dist/cpc`)
 
 단일 바이너리 실행 파일로 빌드하려면 아래 방법 중 하나를 사용합니다:
 
@@ -81,16 +84,16 @@ GitHub Actions 자동 빌드를 통해 macOS, Windows, Linux용 단일 실행 �
 ```
 
 ```bash
-# 방법 2: PyInstaller 명령어로 직접 빌드 (--name 옵션 지정)
-pyinstaller --onefile --clean --name CutPdfCli main.py
+# 방법 2: cpc.spec 파일로 빌드
+pyinstaller cpc.spec
 ```
 
 ```bash
-# 방법 3: CutPdfCli.spec 파일로 빌드
-pyinstaller CutPdfCli.spec
+# 방법 3: PyInstaller 명령어로 직접 빌드 (--name 옵션 지정)
+pyinstaller --onefile --clean --name cpc main.py
 ```
 
-> **참고**: `pyinstaller main.py`처럼 `--name CutPdfCli` 옵션 없이 실행하면 스크립트 파일명을 따라 `dist/main`으로 생성됩니다. `dist/CutPdfCli`로 생성하려면 반드시 `--name CutPdfCli`를 지정하거나 `./build.sh`를 실행하세요.
+> **참고**: 빌드가 완료되면 `dist/cpc` (Windows의 경우 `dist/cpc.exe`)가 생성됩니다. PATH 환경 변수에 등록하거나 `/usr/local/bin` 등으로 이동시키면 어느 위치에서나 `cpc` 명령어로 실행할 수 있습니다.
 
 ## 조작법 안내
 

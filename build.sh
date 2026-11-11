@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CutPdfCli 단일 실행 파일 빌드 스크립트
+# cpc (CutPdfCli) 단일 실행 파일 빌드 스크립트
 set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -14,10 +14,9 @@ else
     PYI=("pyinstaller")
 fi
 
-echo "🚀 CutPdfCli 실행 파일 빌드 시작..."
+echo "🚀 cpc 실행 파일 빌드 시작..."
 export PYINSTALLER_CONFIG_DIR="${PYINSTALLER_CONFIG_DIR:-$DIR/.cache/pyinstaller}"
 
-"${PYI[@]}" --clean CutPdfCli.spec
+"${PYI[@]}" --clean cpc.spec
 
-echo "✅ 빌드 완료: $DIR/dist/CutPdfCli"
-
+echo "✅ 빌드 완료: $DIR/dist/cpc"

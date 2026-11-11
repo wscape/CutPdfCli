@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [('X utf8', None, 'OPTION'), ('u', None, 'OPTION')],
-    name='CutPdfCli',
+    name='cpc',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

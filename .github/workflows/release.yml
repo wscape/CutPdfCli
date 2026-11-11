@@ -2,6 +2,8 @@ name: Build and Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   release:
@@ -21,8 +23,111 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Determine Version & Tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      should_release: ${{ steps.version.outputs.should_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tag and create if on main
+        id: version
+        shell: bash
+        run: |
+          set -e
+
+          # 1. 태그 푸시로 실행된 경우 (refs/tags/v*)
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "Triggered by tag push: $TAG"
+            echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 2. workflow_dispatch로 수동 입력된 태그가 있는 경우
+          if [ -n "${{ inputs.tag_name }}" ]; then
+            TAG="${{ inputs.tag_name }}"
+            echo "Triggered by workflow_dispatch with tag: $TAG"
+            echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 3. main 브랜치 푸시/머지인 경우
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            git fetch --tags --force
+
+            # 현재 커밋에 이미 v로 시작하는 시맨틱 버전 태그가 있는지 확인
+            EXISTING_TAG=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)
+            if [ -n "$EXISTING_TAG" ]; then
+              echo "Commit already tagged with: $EXISTING_TAG"
+              echo "tag_name=$EXISTING_TAG" >> $GITHUB_OUTPUT
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # 최신 v* 태그 검색
+            LATEST_TAG=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n 1 || true)
+            if [ -z "$LATEST_TAG" ]; then
+              LATEST_TAG="v0.0.0"
+            fi
+            echo "Latest tag found: $LATEST_TAG"
+
+            # vX.Y.Z 파싱
+            VERSION="${LATEST_TAG#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            MAJOR=${MAJOR:-0}
+            MINOR=${MINOR:-0}
+            PATCH=${PATCH:-0}
+
+            # 커밋 메시지 / PR 제목 기반 버전 증가 규칙 (Conventional Commits)
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+            if echo "$COMMIT_MSG" | grep -qiE "(#major|BREAKING[ -]CHANGE:)"; then
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+            elif echo "$COMMIT_MSG" | grep -qiE "(#minor|^feat(\(.*\))?:)"; then
+              MINOR=$((MINOR + 1))
+              PATCH=0
+            else
+              PATCH=$((PATCH + 1))
+            fi
+
+            NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            echo "Generated new tag: $NEW_TAG"
+
+            # Git 태그 생성 및 origin 푸시
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+            git push origin "$NEW_TAG"
+
+            echo "tag_name=$NEW_TAG" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 4. Release 이벤트인 경우
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "should_release=false" >> $GITHUB_OUTPUT
+
   build:
     name: Build (${{ matrix.os_name }})
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -32,29 +137,29 @@ jobs:
           - os: ubuntu-latest
             os_name: Linux x86_64
             artifact_id: linux-x86_64
-            binary_name: CutPdfCli-linux-x86_64
-            archive_name: CutPdfCli-linux-x86_64.tar.gz
+            binary_name: cpc-linux-x86_64
+            archive_name: cpc-linux-x86_64.tar.gz
 
           # Windows (x86_64)
           - os: windows-latest
             os_name: Windows x86_64
             artifact_id: windows-x86_64
-            binary_name: CutPdfCli-windows-x86_64.exe
-            archive_name: CutPdfCli-windows-x86_64.zip
+            binary_name: cpc-windows-x86_64.exe
+            archive_name: cpc-windows-x86_64.zip
 
           # macOS Apple Silicon (arm64)
           - os: macos-latest
             os_name: macOS Apple Silicon (arm64)
             artifact_id: macos-arm64
-            binary_name: CutPdfCli-macos-arm64
-            archive_name: CutPdfCli-macos-arm64.tar.gz
+            binary_name: cpc-macos-arm64
+            archive_name: cpc-macos-arm64.tar.gz
 
           # macOS Intel (x86_64)
           - os: macos-15-intel
             os_name: macOS Intel (x86_64)
             artifact_id: macos-x86_64
-            binary_name: CutPdfCli-macos-x86_64
-            archive_name: CutPdfCli-macos-x86_64.tar.gz
+            binary_name: cpc-macos-x86_64
+            archive_name: cpc-macos-x86_64.tar.gz
 
     steps:
       - name: Checkout repository
@@ -73,40 +178,40 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --clean CutPdfCli.spec
+          pyinstaller --clean cpc.spec
 
       - name: Package release assets
         shell: bash
         run: |
           mkdir -p release_assets
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp dist/CutPdfCli.exe release_assets/${{ matrix.binary_name }}
-            python -c "import zipfile; zipfile.ZipFile('release_assets/${{ matrix.archive_name }}', 'w', zipfile.ZIP_DEFLATED).write('dist/CutPdfCli.exe', 'CutPdfCli.exe')"
+            cp dist/cpc.exe release_assets/${{ matrix.binary_name }}
+            python -c "import zipfile; zipfile.ZipFile('release_assets/${{ matrix.archive_name }}', 'w', zipfile.ZIP_DEFLATED).write('dist/cpc.exe', 'cpc.exe')"
           else
-            cp dist/CutPdfCli release_assets/${{ matrix.binary_name }}
+            cp dist/cpc release_assets/${{ matrix.binary_name }}
             chmod +x release_assets/${{ matrix.binary_name }}
-            tar -czvf release_assets/${{ matrix.archive_name }} -C dist CutPdfCli
+            tar -czvf release_assets/${{ matrix.archive_name }} -C dist cpc
           fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cutpdfcli-${{ matrix.artifact_id }}
+          name: cpc-${{ matrix.artifact_id }}
           path: release_assets/*
           if-no-files-found: error
 
   release:
     name: Publish Release Assets
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
+    if: needs.prepare.outputs.should_release == 'true'
     permissions:
       contents: write
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: cutpdfcli-*
+          pattern: cpc-*
           path: dist_all
           merge-multiple: true
 
@@ -119,6 +224,6 @@ jobs:
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
           files: dist_all/*
           generate_release_notes: true

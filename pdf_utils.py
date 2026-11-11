@@ -498,6 +498,10 @@ def find_toc_pages_with_macos(pdf_path: str) -> dict:
         )
         if res.returncode == 0 and res.stdout.strip():
             data = json.loads(res.stdout.strip())
+            try:
+                data["total_pages"] = int(data.get("total_pages", 0))
+            except (ValueError, TypeError):
+                data["total_pages"] = 0
             raw_texts = data.pop("raw_page_texts", {})
             toc_texts = {}
             for p_num_str, txt in raw_texts.items():
@@ -555,7 +559,7 @@ def get_pdf_total_pages(pdf_path: str) -> int:
         """
         res = subprocess.run(["osascript", "-l", "JavaScript", "-e", js_code], capture_output=True, encoding="utf-8", errors="replace", timeout=5)
         if res.returncode == 0 and res.stdout.strip():
-            return json.loads(res.stdout.strip()).get("total", 0)
+            return int(json.loads(res.stdout.strip()).get("total", 0))
     except Exception:
         pass
 
@@ -673,6 +677,11 @@ def parse_split_tasks_from_text(formatted_lines: list[str], total_pages: int) ->
     형태: 제목 줄 바로 다음에 숫자(또는 p.숫자) 줄이 오는 패턴 매칭
     각 작업: {"title": str, "start_page": int, "end_page": int}
     """
+    try:
+        total_pages = int(total_pages)
+    except (ValueError, TypeError):
+        total_pages = 0
+
     items = []
     i = 0
     while i < len(formatted_lines) - 1:
