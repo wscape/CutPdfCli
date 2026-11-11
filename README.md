@@ -51,15 +51,15 @@
 
 ### 1. Homebrew로 설치 (macOS / Linux 추천)
 
-Homebrew Tap을 통해 손쉽게 설치하고 최신 버전으로 업데이트할 수 있습니다:
+Homebrew를 통해 손쉽게 설치하고 최신 버전으로 업데이트할 수 있습니다:
 
 ```bash
-# 1) Tap 추가 및 cpc 설치
-brew tap wscape/CutPdfCli
+# 1) Tap 추가 및 cpc 설치 (저장소 URL 지정)
+brew tap wscape/cutpdfcli https://github.com/wscape/CutPdfCli
 brew install cpc
 
-# 또는 원라이너로 바로 설치
-brew install wscape/CutPdfCli/cpc
+# 또는 URL로 직접 1줄 설치
+brew install --formula https://raw.githubusercontent.com/wscape/CutPdfCli/main/Formula/cpc.rb
 
 # 최신 버전 업데이트
 brew upgrade cpc
