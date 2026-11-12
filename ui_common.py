@@ -20,22 +20,21 @@ else:
 
 
 # =============================================================================
-# ANSI 색상 코드 (밝은 테마 & 어두운 테마 모두 가독성이 뛰어난 256컬러 유니버설 팔레트)
-# 흰색 배경(#FFFFFF)과 검은색 배경(#000000) 모두에서 명도 대비(Contrast Ratio) 3.5:1 이상 확보
+# ANSI 색상 코드
 # =============================================================================
 COLOR_RESET = "\033[0m"
 COLOR_BOLD = "\033[1m"
 COLOR_DIM = "\033[2m"
-COLOR_CYAN = "\033[38;5;31m"     # Deep Teal / Medium Cyan (흰색/검정 배경 모두 구분되는 청록)
-COLOR_BLUE = "\033[38;5;33m"     # Dodger Blue (어두운 배경에서도 묻히지 않는 산뜻한 블루)
-COLOR_GREEN = "\033[38;5;29m"    # Sea Green / Emerald (밝은 배경에서도 또렷한 짙은 녹색)
-COLOR_YELLOW = "\033[38;5;166m"  # Warm Amber / Dark Gold (흰색 배경에서도 선명하게 읽히는 호박색/금색)
-COLOR_RED = "\033[38;5;160m"     # Crimson Red (선명한 빨간색)
-COLOR_REVERSE = "\033[7m"        # 색상 반전 (터미널 테마에 맞춰 자동 반전)
-COLOR_GRAY = "\033[38;5;244m"    # Mid Gray (양쪽 배경 모두에서 적절한 보조 텍스트 회색)
+COLOR_CYAN = "\033[36m"
+COLOR_BLUE = "\033[34m"
+COLOR_GREEN = "\033[32m"
+COLOR_YELLOW = "\033[33m"
+COLOR_RED = "\033[31m"
+COLOR_REVERSE = "\033[7m"
+COLOR_GRAY = "\033[90m"
 
 # 메뉴 UI 전용 색상 (단축키, 항목명, 구분선 각각 다른 색상)
-COLOR_MENU_KEY = f"{COLOR_BOLD}{COLOR_YELLOW}"   # 단축키 색상 (노란색/호박색)
+COLOR_MENU_KEY = f"{COLOR_BOLD}{COLOR_YELLOW}"   # 단축키 색상 (노란색)
 COLOR_MENU_NAME = f"{COLOR_BOLD}" 
 COLOR_MENU_SEP = f" {COLOR_BOLD}{COLOR_CYAN}|{COLOR_RESET} " # 구분선 색상 (청록색)
 
